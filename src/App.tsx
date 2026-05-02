@@ -117,11 +117,11 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="flex gap-4">
+                      <div className="flex gap-4">
                     <span className="text-cyan-500 font-bold">[03]</span>
                     <div>
                         <p className="text-white mb-2">Deploy Script</p>
-                        <p className="text-[11px] mb-2 opacity-50 italic">// Create 'aether.js' and paste the provided core logic.</p>
+                        <p className="text-[11px] mb-2 opacity-50 italic">// Create 'aether.js' and paste the provided core logic. v3.1 supports /models command.</p>
                         <code className="block bg-black p-3 border border-cyan-900 rounded text-cyan-400 text-xs">
                           nano aether.js
                         </code>

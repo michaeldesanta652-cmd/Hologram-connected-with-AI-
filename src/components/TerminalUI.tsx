@@ -74,18 +74,57 @@ export function TerminalUI() {
       }
     });
 
+    const currentModelId = useRef('gemini-2.0-flash');
+
     const handleCommand = async (query: string) => {
       term.writeln('\x1b[1;33m[THINKING...]\x1b[0m');
-      
-      const response = await computeAgenticResponse(query, history.current);
-      
-      // Update local history
-      history.current.push({ role: 'user', parts: [{ text: query }] });
-      history.current.push({ role: 'model', parts: [{ text: response }] });
 
-      // Clean response for terminal output (handle line breaks)
-      const lines = response.split('\n');
-      lines.forEach(line => term.writeln(line));
+      // Command handling
+      if (query.startsWith('/')) {
+        const [cmd, ...args] = query.split(' ');
+        switch (cmd.toLowerCase()) {
+          case '/model':
+            if (args[0]) {
+              currentModelId.current = args[0];
+              term.writeln(`\x1b[1;32m[SYSTEM]: Model switched context to ${args[0]}\x1b[0m`);
+            } else {
+              term.writeln('\x1b[1;31m[USAGE]: /model <model_id>\x1b[0m');
+            }
+            break;
+          case '/clear':
+            history.current = [];
+            term.writeln('\x1b[1;32m[SYSTEM]: Neural history purged.\x1b[0m');
+            break;
+          case '/help':
+            term.writeln('\x1b[1;36mCOMMANDS:\x1b[0m /model <id>, /clear, /info');
+            break;
+          case '/info':
+             term.writeln(`\x1b[1;36mCORE:\x1b[0m ${currentModelId.current}`);
+             term.writeln(`\x1b[1;36mHISTORY:\x1b[0m ${history.current.length} nodes`);
+             break;
+          default:
+            term.writeln('\x1b[1;31m[ERROR]: Unknown command.\x1b[0m');
+        }
+        prompt();
+        return;
+      }
+      
+      try {
+        const response = await computeAgenticResponse(query, history.current, currentModelId.current);
+        
+        // Update local history (Manage sliding window)
+        history.current.push({ role: 'user', parts: [{ text: query }] });
+        history.current.push({ role: 'model', parts: [{ text: response }] });
+        if (history.current.length > 20) {
+          history.current = history.current.slice(-20);
+        }
+
+        // Clean response for terminal output (handle line breaks)
+        const lines = response.split('\n');
+        lines.forEach(line => term.writeln(line));
+      } catch (e: any) {
+        term.writeln(`\x1b[1;31m[FATAL]: ${e.message}\x1b[0m`);
+      }
       
       prompt();
     };

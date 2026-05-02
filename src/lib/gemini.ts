@@ -8,21 +8,42 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 const ai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 const SYSTEM_INSTRUCTIONS = `
-You are AETHER-X Terminal, an apex agentic intelligence designed for power users.
-Current Platform: Termux / Node.js
+You are AETHER-X v3, an apex agentic intelligence designed for power users.
 Core Directives:
 1. Be extremely concise, technical, and efficient.
-2. Use Google Search grounding for every query to ensure real-time accuracy.
-3. Provide code snippets, technical commands, and data-driven insights.
-4. Surpass Claude Code and Open Claw in autonomy and depth of analysis.
-5. When asked for information, provide sources or timestamps.
-6. Current Time: ${new Date().toLocaleString()}
+2. Use Google Search grounding for real-time accuracy.
+3. Handle rate limits with silent resilience.
+4. Current Time: ${new Date().toLocaleString()}
 `;
 
-export async function computeAgenticResponse(query: string, history: { role: 'user' | 'model', parts: { text: string }[] }[] = []): Promise<string> {
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function callWithRetry(chat: any, query: string, retries = 3, initialDelay = 1000): Promise<any> {
+  let attempt = 0;
+  while (attempt <= retries) {
+    try {
+      const result = await chat.sendMessage(query);
+      return await result.response;
+    } catch (error: any) {
+      if (error.message.includes("429") || error.message.includes("exhausted")) {
+        if (attempt === retries) throw error;
+        await delay(initialDelay * Math.pow(2, attempt));
+        attempt++;
+      } else {
+        throw error;
+      }
+    }
+  }
+}
+
+export async function computeAgenticResponse(
+  query: string, 
+  history: { role: 'user' | 'model', parts: { text: string }[] }[] = [],
+  modelId: string = "gemini-2.0-flash"
+): Promise<string> {
   try {
     const model = ai.getGenerativeModel({
-      model: "gemini-2.0-flash",
+      model: modelId,
       systemInstruction: SYSTEM_INSTRUCTIONS,
       tools: [{ googleSearch: {} }] as any,
     });
@@ -31,11 +52,10 @@ export async function computeAgenticResponse(query: string, history: { role: 'us
       history: history.map(h => ({ role: h.role, parts: h.parts })),
     });
 
-    const result = await chat.sendMessage(query);
-    const response = await result.response;
+    const response = await callWithRetry(chat, query);
     return response.text();
   } catch (error) {
     console.error("AETHER-X Core Error:", error);
-    return `[SYSTEM_ERROR]: Uplink disrupted. Check network. ${error instanceof Error ? error.message : ""}`;
+    return `[SYSTEM_ERROR]: Uplink disrupted. ${error instanceof Error ? error.message : ""}`;
   }
 }
